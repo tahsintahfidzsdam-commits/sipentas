@@ -1035,5 +1035,31 @@ function app(){return{
   }
 }}
 </script>
+  <script>
+(function(){
+  // ikon diambil dari logo favicon yang sudah ada
+  const icon=document.querySelector('link[rel=icon]').href;
+  const m={name:"SIPENTAS - Sistem Penilaian Tahsin & Tahfidz",short_name:"SIPENTAS",
+    start_url:location.pathname,scope:location.pathname,display:"standalone",
+    background_color:"#f0fdf4",theme_color:"#047857",
+    icons:[{src:icon,sizes:"192x192",type:"image/jpeg"},{src:icon,sizes:"512x512",type:"image/jpeg"}]};
+  const l=document.createElement('link');l.rel='manifest';
+  l.href=URL.createObjectURL(new Blob([JSON.stringify(m)],{type:'application/manifest+json'}));
+  document.head.appendChild(l);
+  const t=document.createElement('meta');t.name='theme-color';t.content='#047857';document.head.appendChild(t);
+
+  if('serviceWorker' in navigator)navigator.serviceWorker.register('sw.js').catch(()=>{});
+
+  // tombol pasang
+  const b=document.createElement('button');
+  b.textContent='📲 Pasang Aplikasi';b.className='btn btn-p no-print';
+  b.style.cssText='display:none;position:fixed;bottom:16px;right:16px;z-index:40;box-shadow:0 4px 12px rgba(0,0,0,.25)';
+  document.body.appendChild(b);
+  let dp=null;
+  window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();dp=e;b.style.display='inline-flex'});
+  window.addEventListener('appinstalled',()=>b.style.display='none');
+  b.onclick=async()=>{if(dp){dp.prompt();await dp.userChoice;dp=null;b.style.display='none'}};
+})();
+</script>
 </body>
 </html>
