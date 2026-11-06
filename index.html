@@ -1091,5 +1091,234 @@ function app(){return{
       };
     })();
     </script>
+<!-- ===================== SIPENTAS V3 — TAMBAHAN (paste SEKALI, tepat sebelum </body>) ===================== -->
+<script>
+(function(){
+const PENGUJI_PASS='penguji2026';   // sandi khusus penguji (ubah di sini)
+
+/* ---------- 1. Status halaqoh: "Lulus" dipindah ke menu Ujian ---------- */
+STATUS.length=0;STATUS.push('Ulangi','Perbaiki Panjang Pendek','Perbaiki Urutan Ayat','Perbaiki Tajwid','Lancarkan');
+
+/* ---------- 2. Ummi disederhanakan: Tartil, Fashohah, Panjang-Pendek, Ghunnah ---------- */
+ASPEK.length=0;ASPEK.push(
+ {k:'kelancaran',l:'Tartil',h:'Lancar, tidak terputus, tempo dan irama tartil',req:true},
+ {k:'makhraj',l:'Fashohah',h:'Ketepatan makhraj dan kefasihan bacaan',req:true},
+ {k:'mad',l:'Panjang-Pendek',h:'Ketepatan panjang-pendek bacaan (mad)',req:true},
+ {k:'ghunnah',l:'Ghunnah',h:'Ketepatan dengung',req:true});
+
+/* contoh awal pokok bahasan (bisa diubah supervisor di menu Kendali) */
+const MATERI0={'Jilid 1':['Huruf hijaiyah berharakat fathah'],'Jilid 2':['Harakat kasrah & dhammah','Huruf bersambung'],'Jilid 3':["Mad thabi'i",'Huruf mati (sukun)'],'Jilid 4':['Tanwin','Tasydid'],'Jilid 5':['Nun mati/tanwin','Mim mati'],'Jilid 6':['Mad & qalqalah','Waqaf'],"Al-Qur'an":['Bacaan tartil'],'Ghorib':['Bacaan ghorib'],'Tajwid':['Hukum tajwid']};
+
+/* ---------- 3. HTML tambahan (disisipkan sebelum Alpine berjalan) ---------- */
+const sec=t=>[...document.querySelectorAll('section')].find(s=>s.getAttribute('x-show')===t);
+const secG=sec("screen==='app' && portal!=='supervisi'"),secS=sec("screen==='app' && portal==='supervisi'");
+
+// pilih halaqoh (guru) + impor pengaturan supervisor
+secG.querySelector('.card').insertAdjacentHTML('afterend',`
+<div class="card p-3 flex flex-wrap gap-3 items-end">
+ <div class="grow" x-show="g3.grup.length"><label class="lbl">Halaqoh (opsional) — tampilkan hanya anggota halaqoh</label>
+  <select class="inp" x-model="grp" @change="nis=''"><option value="">— Semua siswa kelas ini —</option>
+  <template x-for="g in g3.grup" :key="g.id"><option :value="g.id" x-text="g.nama+' · '+g.guru+' ('+g.anggota.length+' siswa)'"></option></template></select></div>
+ <label class="btn btn-o cursor-pointer text-xs">⬆ Impor pengaturan halaqoh (.json)<input type="file" accept=".json" class="hidden" @change="importCfg($event)"></label>
+</div>`);
+
+// halaqoh: tab + form
+const hForm=secG.querySelector(`[x-show="portal==='halaqoh'"]`);
+hForm.setAttribute('x-show',`portal==='halaqoh' && hTab==='setoran'`);
+hForm.insertAdjacentHTML('beforebegin',`
+<div class="card p-3 flex flex-wrap gap-2" x-show="portal==='halaqoh'">
+ <template x-for="t in hTabs" :key="t[0]"><button class="btn" :class="hTab===t[0]?'btn-p':'btn-o'" @click="hTab=t[0]" x-text="t[1]"></button></template></div>`);
+hForm.insertAdjacentHTML('afterend',`
+<!-- UJIAN -->
+<div class="card p-4 sm:p-5" x-show="portal==='halaqoh' && hTab==='ujian'">
+ <h2 class="font-extrabold text-brand-dark">Ujian Kelulusan Hafalan <span class="text-gold-dark">(khusus Penguji)</span></h2>
+ <p class="text-xs text-slate-500 mb-3">Status "Lulus" hanya diberikan melalui menu ini oleh penguji.</p>
+ <div x-show="!uj.unlock" class="grid sm:grid-cols-3 gap-3 items-end">
+  <div><label class="lbl">Nama penguji</label><input class="inp" x-model="uj.penguji"></div>
+  <div><label class="lbl">Sandi penguji</label><input type="password" class="inp" x-model="uj.pw" @keydown.enter="unlockUj()"></div>
+  <button class="btn btn-g justify-center" @click="unlockUj()">Buka menu ujian</button>
+  <p class="text-sm text-red-600 font-semibold sm:col-span-3" x-show="uj.err" x-text="uj.err"></p></div>
+ <div x-show="uj.unlock" class="space-y-3">
+  <p class="text-sm">Penguji: <b x-text="uj.penguji"></b> · Siswa: <b x-text="siswa?siswa.nama:'(pilih siswa di atas)'"></b> <button class="btn btn-o !py-1 !px-2 ml-2" @click="uj.unlock=false;uj.pw=''">Ganti penguji</button></p>
+  <div class="grid sm:grid-cols-5 gap-3">
+   <div><label class="lbl">Tanggal</label><input type="date" class="inp" x-model="uj.tgl"></div>
+   <div class="sm:col-span-2"><label class="lbl">Surat</label><input class="inp" list="dlSurat" x-model="uj.surat" placeholder="mis. An-Naba"></div>
+   <div><label class="lbl">Juz</label><input type="number" min="1" max="30" class="inp" x-model.number="uj.juz"></div>
+   <div><label class="lbl">Ayat (dari – sampai)</label><div class="flex items-center gap-1"><input type="number" min="1" class="inp" x-model.number="uj.dari"><span>–</span><input type="number" min="1" class="inp" x-model.number="uj.sampai"></div></div></div>
+  <div class="flex gap-2"><button class="btn" :class="uj.hasil==='Lulus'?'btn-p':'btn-o'" @click="uj.hasil='Lulus'">✅ Lulus</button><button class="btn" :class="uj.hasil==='Belum Lulus'?'btn-d ring-2 ring-red-300':'btn-o'" @click="uj.hasil='Belum Lulus'">Belum Lulus</button></div>
+  <div><label class="lbl">Catatan penguji</label><textarea rows="2" class="inp" x-model="uj.catatan"></textarea></div>
+  <button class="btn btn-p" @click="saveUj()">💾 Simpan Hasil Ujian</button>
+  <div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="bg-brand text-white text-left"><th class="p-2">Tanggal</th><th class="p-2">Surat</th><th class="p-2">Ayat</th><th class="p-2">Hasil</th><th class="p-2">Penguji</th></tr></thead>
+   <tbody><template x-for="r in histUj" :key="r.id"><tr class="border-b"><td class="p-2" x-text="fmtTgl(r.tgl)"></td><td class="p-2 font-semibold" x-text="r.surat"></td><td class="p-2" x-text="r.dari+'–'+r.sampai"></td><td class="p-2"><span class="px-2 py-0.5 rounded-full border text-xs font-bold" :class="badge(r.status)" x-text="r.status"></span></td><td class="p-2 text-xs" x-text="r.penguji"></td></tr></template>
+   <tr x-show="!histUj.length"><td colspan="5" class="p-3 text-center text-slate-400">Belum ada hasil ujian siswa ini.</td></tr></tbody></table></div>
+ </div></div>
+<!-- AL-QUR'AN -->
+<div class="card p-4 sm:p-5" x-show="(portal==='halaqoh'&&hTab==='quran')||(portal==='ummi'&&uTab==='quran')">
+ <h2 class="font-extrabold text-brand-dark">📖 Al-Qur'an — panduan simakan guru</h2>
+ <div class="grid sm:grid-cols-5 gap-3 mt-3 items-end">
+  <div class="sm:col-span-2"><label class="lbl">Surat</label><select class="inp" x-model.number="qr.n"><template x-for="s in SURAH" :key="s.n"><option :value="s.n" x-text="s.n+'. '+s.name+' ('+s.a+' ayat)'"></option></template></select></div>
+  <div><label class="lbl">Dari ayat</label><input type="number" min="1" class="inp" x-model="qr.from"></div>
+  <div><label class="lbl">Sampai ayat</label><input type="number" min="1" class="inp" x-model="qr.to"></div>
+  <button class="btn btn-p justify-center" @click="qrLoad()" x-text="qr.loading?'Memuat…':'Tampilkan'"></button></div>
+ <div class="flex flex-wrap gap-4 items-center mt-3 text-sm">
+  <label class="flex gap-1"><input type="checkbox" x-model="qr.tr"> Terjemahan</label>
+  <label class="flex gap-2 items-center">Ukuran huruf <input type="range" min="20" max="48" x-model.number="qr.fs"></label>
+  <button class="btn btn-o !py-1" x-show="portal==='halaqoh'" @click="qrFromHf()">Pakai surat setoran</button></div>
+ <p class="text-sm text-red-600 font-semibold mt-2" x-show="qr.err" x-text="qr.err"></p>
+ <p class="text-xs text-slate-500 mt-2" x-show="!qr.rows.length&&!qr.err">Pilih surat lalu tekan Tampilkan (butuh internet; sumber: api.alquran.cloud).</p>
+ <div class="mt-3 max-h-[70vh] overflow-y-auto"><template x-for="r in qrView" :key="r.n"><div class="py-3 border-b">
+  <div dir="rtl" class="leading-loose" :style="'font-size:'+qr.fs+'px'" style="font-family:'Traditional Arabic','Scheherazade New','Amiri',serif"><span x-text="r.ar"></span> <span class="text-brand text-base">﴿<span x-text="r.n"></span>﴾</span></div>
+  <div x-show="qr.tr" class="text-sm text-slate-600" x-text="r.n+'. '+r.id"></div></div></template></div>
+</div>`);
+
+// riwayat & ringkasan halaqoh hanya di tab setoran; ummi individu
+secG.querySelectorAll(`[x-show="portal==='halaqoh' || uTab==='individu'"]`).forEach(e=>e.setAttribute('x-show',`(portal==='halaqoh'&&hTab==='setoran')||(portal==='ummi'&&uTab==='individu')`));
+secG.querySelector(`[x-show="portal==='ummi' && uTab!=='individu'"]`).setAttribute('x-show',`portal==='ummi' && !['individu','quran'].includes(uTab)`);
+// pokok bahasan di penilaian individu
+secG.querySelector(`[x-show="portal==='ummi' && uTab==='individu'"]`).querySelector('.rounded-xl').insertAdjacentHTML('beforebegin',`
+<div class="mt-3 grid sm:grid-cols-2 gap-3"><div><label class="lbl">Pokok bahasan (dasar penilaian jilid)</label>
+ <select class="inp" x-model="uf.pokok"><option value="">— pilih pokok bahasan —</option><template x-for="m in pokokList" :key="m"><option :value="m" x-text="m"></option></template></select></div>
+ <p class="text-xs text-slate-500 self-end pb-2" x-show="!pokokList.length">Belum ada pokok bahasan untuk jilid ini (supervisor menambahkan di menu Kendali).</p></div>`);
+
+// supervisi: tab baru
+const tpl=secS.querySelector('template[x-for]');
+tpl.setAttribute('x-for',tpl.getAttribute('x-for').replace("['siswa','🧾 Laporan Siswa']","['siswa','🧾 Laporan Siswa'],['kendali','⚙ Kendali Halaqoh'],['capaian','📈 Capaian']"));
+
+const capT=(ttl,rows)=>`<div class="card p-4"><h3 class="font-bold text-brand-dark mb-2">${ttl}</h3><div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="bg-brand text-white text-left"><th class="p-2">Kelompok</th><th class="p-2">Siswa</th><th class="p-2">Halaqoh sudah setor</th><th class="p-2">Halaqoh lulus</th><th class="p-2">Ummi dinilai</th><th class="p-2">Ummi lulus</th></tr></thead><tbody><template x-for="r in ${rows}" :key="r.label"><tr class="border-b"><td class="p-2 font-semibold" x-text="r.label"></td><td class="p-2" x-text="r.n"></td>${['hS','hL','uS','uL'].map(k=>`<td class="p-2 min-w-[110px]"><div class="text-xs font-bold" x-text="r.${k}+' ('+pn(r.${k},r.n)+'%)'"></div><div class="h-2 bg-slate-200 rounded"><div class="h-2 rounded ${k[1]==='L'?'bg-brand':'bg-gold'}" :style="'width:'+pn(r.${k},r.n)+'%'"></div></div></td>`).join('')}</tr></template></tbody></table></div></div>`;
+
+secS.insertAdjacentHTML('beforeend',`
+<template x-if="tab==='capaian'"><div class="space-y-4">
+ <div class="no-print flex flex-wrap gap-2 items-end"><div><label class="lbl">Kelas untuk tabel per rombel</label><select class="inp" x-model="cap.k"><template x-for="k in KELAS" :key="k"><option :value="k" x-text="'Kelas '+k"></option></template></select></div><button class="btn btn-o" @click="window.print()">🖨 Cetak Laporan</button></div>
+ ${capT('Capaian Seluruh Sekolah','capTotal')}${capT('Capaian per Level Kelas (I–VI)','capLevel')}${capT('Capaian per Rombel','capRombel')}
+ <p class="text-xs text-slate-500">Halaqoh lulus = siswa yang pernah lulus ujian surat. Ummi lulus = siswa dengan keputusan terakhir "Lulus". Persentase terhadap jumlah siswa.</p></div></template>
+
+<template x-if="tab==='kendali'"><div class="space-y-4 no-print">
+ <div class="card p-4"><h3 class="font-bold text-brand-dark mb-2">1. Buat Halaqoh</h3>
+  <div class="grid sm:grid-cols-4 gap-3">
+   <div><label class="lbl">Nama halaqoh</label><input class="inp" x-model="kd.nama" placeholder="mis. Halaqoh Al-Fatih"></div>
+   <div><label class="lbl">Ustadzah / Ustadz</label><input class="inp" list="dlGuru" x-model="kd.guru"></div>
+   <div><label class="lbl">Program</label><select class="inp" x-model="kd.program"><option>Halaqoh Surat</option><option>Metode Ummi</option></select></div>
+   <div><label class="lbl">Target capaian</label><input class="inp" x-model="kd.target" placeholder="mis. Juz 30 / Jilid 3"></div></div>
+  <button class="btn btn-p mt-3" @click="addGrup()">+ Buat halaqoh</button></div>
+
+ <div class="card p-4"><h3 class="font-bold text-brand-dark mb-2">2. Tentukan Anggota (manual atau acak)</h3>
+  <div class="grid sm:grid-cols-5 gap-3 items-end">
+   <div><label class="lbl">Halaqoh tujuan</label><select class="inp" x-model="kd.sel"><option value="">— pilih —</option><template x-for="g in g3.grup" :key="g.id"><option :value="g.id" x-text="g.nama+' ('+g.program+')'"></option></template></select></div>
+   <div><label class="lbl">Kelas</label><select class="inp" x-model="kd.k"><template x-for="k in KELAS" :key="k"><option :value="k" x-text="'Kelas '+k"></option></template></select></div>
+   <div><label class="lbl">Rombel</label><select class="inp" x-model="kd.r"><option value="">Semua</option><template x-for="r in ROMBEL" :key="r"><option x-text="r"></option></template></select></div>
+   <div><label class="lbl">Jumlah acak</label><input type="number" min="1" class="inp" x-model.number="kd.jml"></div>
+   <button class="btn btn-g justify-center" @click="randomPick()">🎲 Acak</button></div>
+  <div class="max-h-56 overflow-y-auto border rounded-xl mt-3 p-2 grid sm:grid-cols-2 gap-1"><template x-for="s in kdPool" :key="s.nis"><label class="text-sm flex gap-2"><input type="checkbox" :value="s.nis" x-model="kd.pick"><span x-text="s.nama+' ('+s.kelas+' '+s.rombel+')'"></span></label></template></div>
+  <p class="text-xs text-slate-500 mt-1"><span x-text="kdPool.length"></span> siswa tersedia (belum masuk halaqoh program yang sama) · terpilih <b x-text="kd.pick.length"></b></p>
+  <button class="btn btn-p mt-2" @click="assign()">Masukkan ke halaqoh tujuan</button></div>
+
+ <template x-for="g in g3.grup" :key="g.id"><div class="card p-4">
+  <div class="flex flex-wrap items-center gap-2"><h3 class="font-bold text-brand-dark" x-text="g.nama"></h3><span class="text-xs text-slate-500" x-text="g.guru+' · '+g.program+(g.target?' · Target: '+g.target:'')+' · '+g.anggota.length+' siswa'"></span><button class="btn btn-d !py-1 !px-2 ml-auto" @click="delGrup(g.id)">Hapus halaqoh</button></div>
+  <div class="overflow-x-auto mt-2"><table class="w-full text-sm"><thead><tr class="bg-brand-soft text-brand-dark text-left"><th class="p-2">Nama</th><th class="p-2">Kelas</th><th class="p-2">Status target</th><th class="p-2">Pindah ke halaqoh</th><th class="p-2"></th></tr></thead>
+   <tbody><template x-for="n in g.anggota" :key="n"><tr class="border-b"><td class="p-2 font-semibold" x-text="sis(n).nama"></td><td class="p-2" x-text="sis(n).kelas+' '+sis(n).rombel"></td>
+    <td class="p-2"><span class="px-2 py-0.5 rounded-full border text-xs font-bold" :class="kdSt(g,n)==='Tercapai'?'bg-emerald-100 text-emerald-800 border-emerald-400':kdSt(g,n)==='Belum'?'bg-red-100 text-red-700 border-red-300':'bg-slate-100 text-slate-600 border-slate-300'" x-text="kdSt(g,n)==='Belum'?'Belum mencapai target — perlu pindah?':kdSt(g,n)"></span></td>
+    <td class="p-2"><select class="inp !py-1" @change="moveMember(g,n,$event.target.value);$event.target.value=''"><option value="">— pilih —</option><template x-for="h in g3.grup.filter(x=>x.id!==g.id&&x.program===g.program)" :key="h.id"><option :value="h.id" x-text="h.nama+' ('+h.guru+')'"></option></template></select></td>
+    <td class="p-2"><button class="btn btn-d !py-1 !px-2" @click="rmMember(g,n)">Keluarkan</button></td></tr></template>
+    <tr x-show="!g.anggota.length"><td colspan="5" class="p-3 text-center text-slate-400">Belum ada anggota.</td></tr></tbody></table></div></div></template>
+
+ <div class="card p-4"><h3 class="font-bold text-brand-dark mb-2">3. Pokok Bahasan per Jilid</h3>
+  <select class="inp max-w-xs" x-model="kd.mj"><template x-for="j in JILID" :key="j"><option x-text="j"></option></template></select>
+  <ul class="mt-2 text-sm divide-y"><template x-for="(m,i) in (g3.materi[kd.mj]||[])" :key="kd.mj+i"><li class="py-1 flex"><span x-text="(i+1)+'. '+m"></span><button class="ml-auto text-red-600 font-bold" @click="delMateri(i)">✕</button></li></template></ul>
+  <div class="flex gap-2 mt-2"><input class="inp" x-model="kd.mt" placeholder="Tambah pokok bahasan…" @keydown.enter="addMateri()"><button class="btn btn-o" @click="addMateri()">+ Tambah</button></div></div>
+
+ <div class="card p-4 flex flex-wrap items-center gap-2"><div class="text-sm text-slate-600 mr-auto"><b class="text-brand-dark">Bagikan pengaturan ke guru.</b> Halaqoh & pokok bahasan tersimpan di perangkat ini. Unduh lalu kirim ke guru untuk diimpor di Portal Guru.</div><button class="btn btn-g" @click="exportCfg()">⬇ Ekspor pengaturan (.json)</button></div>
+</div></template>`);
+
+/* ---------- 4. Perluasan logika aplikasi ---------- */
+const A0=app;
+app=function(){
+ const b=A0();
+ const gt=(n,f)=>Object.defineProperty(b,n,{get:f,enumerable:true,configurable:true});
+ const oInit=b.init,oBadge=b.badge,oSaveU=b.saveU,oResetU=b.resetU,oSK=Object.getOwnPropertyDescriptor(b,'siswaKelas').get;
+ b.uf.pokok='';
+ Object.assign(b,{
+  hTab:'setoran',hTabs:[['setoran','📝 Setoran Harian'],['ujian','🎓 Ujian Kelulusan'],['quran',"📖 Al-Qur'an"]],
+  grp:'',g3:{grup:[],materi:{}},cap:{k:'I'},
+  uj:{unlock:false,pw:'',penguji:'',err:'',tgl:todayStr(),surat:'',juz:30,dari:1,sampai:'',hasil:'Lulus',catatan:''},
+  qr:{n:78,from:'',to:'',rows:[],tr:true,fs:28,loading:false,err:''},
+  kd:{nama:'',guru:'',program:'Halaqoh Surat',target:'',sel:'',k:'I',r:'',jml:5,pick:[],mj:'Jilid 1',mt:''},
+  init(){oInit.call(this);this.g3={grup:store.get('grup',[]),materi:store.get('materi',null)||JSON.parse(JSON.stringify(MATERI0))}},
+  saveG3(){store.set('grup',this.g3.grup);store.set('materi',this.g3.materi)},
+  sis(n){return NISMAP[n]||{nama:n,kelas:'',rombel:''}},
+  pn(a,b){return b?Math.round(a*100/b):0},
+  badge(s){return({'Perbaiki Urutan Ayat':'bg-orange-100 text-orange-800 border-orange-300','Perbaiki Tajwid':'bg-violet-100 text-violet-800 border-violet-300','Belum Lulus':'bg-rose-100 text-rose-700 border-rose-300'})[s]||oBadge.call(this,s)},
+  resetU(){oResetU.call(this);this.uf.pokok=''},
+  saveU(){const c0=this.uf.catatan,n=this.d.ummi.length;if(this.uf.pokok)this.uf.catatan='[Pokok: '+this.uf.pokok+'] '+c0;oSaveU.call(this);if(this.d.ummi.length===n)this.uf.catatan=c0},
+
+  /* ujian */
+  unlockUj(){if(this.uj.penguji.trim().length<3){this.uj.err='Isi nama penguji.';return}if(this.uj.pw!==PENGUJI_PASS){this.uj.err='Sandi penguji salah.';return}this.uj.unlock=true;this.uj.err='';this.uj.pw=''},
+  saveUj(){
+    const f=this.uj,s=SURAH.find(x=>norm(x.name)===norm(f.surat));
+    if(!this.siswa)return this.notify('Pilih siswa terlebih dahulu.','err');
+    if(!s)return this.notify('Pilih nama surat dari daftar.','err');
+    if(!(f.dari>=1)||!(f.sampai>=f.dari)||f.sampai>s.a)return this.notify('Rentang ayat tidak valid (surat '+s.name+' = '+s.a+' ayat).','err');
+    const r={id:uid(),ts:Date.now(),tgl:f.tgl,nis:this.nis,nama:this.siswa.nama,kelas:this.siswa.kelas,rombel:this.siswa.rombel,surat:s.name,juz:f.juz,dari:f.dari,sampai:f.sampai,status:f.hasil,catatan:'[UJIAN] '+f.catatan.trim(),penguji:f.penguji.trim()};
+    this.d.halaqoh.push(r);
+    if(!store.set('halaqoh',this.d.halaqoh)){this.d.halaqoh.pop();return this.notify('Gagal menyimpan.','err')}
+    this.enqueue('add','halaqoh',r);this.addLog('Ujian Halaqoh',this.siswa.nama+' · '+s.name+' · '+f.hasil);
+    this.notify('Hasil ujian tersimpan: '+this.siswa.nama+' — '+f.hasil);f.catatan='';
+  },
+
+  /* al-qur'an */
+  async qrLoad(){
+    const q=this.qr;q.err='';q.loading=true;
+    try{const r=await fetch('https://api.alquran.cloud/v1/surah/'+q.n+'/editions/quran-uthmani,id.indonesian'),j=await r.json();
+      if(j.code!==200)throw 0;const ar=j.data[0].ayahs,id=j.data[1].ayahs;
+      q.rows=ar.map((a,i)=>({n:a.numberInSurah,ar:a.text,id:id[i]?id[i].text:''}))}
+    catch(e){q.rows=[];q.err="Gagal memuat Al-Qur'an. Periksa koneksi internet."}
+    q.loading=false;
+  },
+  qrFromHf(){const s=this.suratInfo;if(!s)return this.notify('Isi surat di form setoran dahulu.','err');this.qr.n=s.n;this.qr.from=this.hf.dari||'';this.qr.to=this.hf.sampai||'';this.qrLoad()},
+
+  /* kendali halaqoh */
+  addGrup(){const k=this.kd;if(!k.nama.trim()||!k.guru.trim())return this.notify('Isi nama halaqoh dan nama ustadzah.','err');
+    this.g3.grup.push({id:uid(),nama:k.nama.trim(),guru:k.guru.trim(),program:k.program,target:k.target.trim(),anggota:[]});this.saveG3();k.nama='';k.target='';this.notify('Halaqoh dibuat.')},
+  delGrup(id){if(!confirm('Hapus halaqoh ini? Anggota tidak terhapus dari data siswa.'))return;this.g3.grup=this.g3.grup.filter(x=>x.id!==id);if(this.grp===id)this.grp='';this.saveG3()},
+  randomPick(){this.kd.pick=[...this.kdPool].sort(()=>Math.random()-.5).slice(0,Math.max(0,+this.kd.jml||0)).map(s=>s.nis)},
+  assign(){const g=this.g3.grup.find(x=>x.id===this.kd.sel);if(!g)return this.notify('Pilih halaqoh tujuan.','err');if(!this.kd.pick.length)return this.notify('Pilih siswa terlebih dahulu.','err');
+    const p=[...this.kd.pick];this.g3.grup.forEach(x=>{if(x.program===g.program)x.anggota=x.anggota.filter(n=>!p.includes(n))});
+    p.forEach(n=>g.anggota.push(n));this.saveG3();this.kd.pick=[];this.notify(p.length+' siswa masuk ke '+g.nama)},
+  rmMember(g,n){g.anggota=g.anggota.filter(x=>x!==n);this.saveG3()},
+  moveMember(g,n,to){if(!to)return;const t=this.g3.grup.find(x=>x.id===to);if(!t)return;g.anggota=g.anggota.filter(x=>x!==n);t.anggota.push(n);this.saveG3();this.addLog('Pindah halaqoh',this.sis(n).nama+' → '+t.nama);this.notify(this.sis(n).nama+' dipindah ke '+t.nama)},
+  kdSt(g,n){
+    if(g.program==='Metode Ummi'){const l=latestBy(this.d.ummi.filter(r=>r.nis===n),()=>1)[0];return l?(l.keputusan==='Lulus'?'Tercapai':'Belum'):'Belum dinilai'}
+    const h=this.d.halaqoh.filter(r=>r.nis===n);return !h.length?'Belum dinilai':h.some(r=>r.status==='Lulus')?'Tercapai':'Belum'},
+  addMateri(){const j=this.kd.mj,t=this.kd.mt.trim();if(!t)return;if(!this.g3.materi[j])this.g3.materi[j]=[];this.g3.materi[j].push(t);this.kd.mt='';this.saveG3()},
+  delMateri(i){this.g3.materi[this.kd.mj].splice(i,1);this.saveG3()},
+  exportCfg(){const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify({app:'SIPENTAS-CFG',grup:this.g3.grup,materi:this.g3.materi})],{type:'application/json'}));a.download='SIPENTAS_pengaturan_'+todayStr()+'.json';document.body.appendChild(a);a.click();a.remove();this.notify('Pengaturan diunduh.')},
+  importCfg(ev){const f=ev.target.files[0];if(!f)return;const rd=new FileReader();rd.onload=()=>{try{const j=JSON.parse(rd.result);if(j.app!=='SIPENTAS-CFG')throw 0;this.g3.grup=j.grup||[];this.g3.materi=j.materi||this.g3.materi;this.saveG3();this.notify('Pengaturan halaqoh diimpor.')}catch(e){this.notify('File pengaturan tidak valid.','err')}ev.target.value=''};rd.readAsText(f)},
+
+  /* capaian */
+  capSum(rows,label){const t={label,n:0,hS:0,hL:0,uS:0,uL:0};rows.forEach(r=>['n','hS','hL','uS','uL'].forEach(k=>t[k]+=r[k]));return t}
+ });
+
+ gt('siswaKelas',function(){const g=this.g3.grup.find(x=>x.id===this.grp);return g?g.anggota.map(n=>NISMAP[n]).filter(Boolean):oSK.call(this)});
+ gt('histUj',function(){return this.histH.filter(r=>(r.catatan||'').startsWith('[UJIAN]'))});
+ gt('pokokList',function(){return this.g3.materi[this.uf.jilid]||[]});
+ gt('qrView',function(){const f=+this.qr.from||1,t=+this.qr.to||99999;return this.qr.rows.filter(r=>r.n>=f&&r.n<=t)});
+ gt('kdPool',function(){const g=this.g3.grup.find(x=>x.id===this.kd.sel),used=new Set();
+   if(g)this.g3.grup.filter(x=>x.program===g.program).forEach(x=>x.anggota.forEach(n=>used.add(n)));
+   return SIS.filter(s=>s.kelas===this.kd.k&&(!this.kd.r||s.rombel===this.kd.r)&&!used.has(s.nis))});
+ gt('alquranLevel',function(){const L=["Al-Qur'an",'Ghorib','Tajwid'];if(!this.siswa)return false;
+   const l=latestBy(this.d.ummi.filter(r=>r.nis===this.nis),()=>1)[0];return (!!l&&L.includes(l.jilid))||L.includes(this.uf.jilid)});
+ gt('UTAB',function(){const t=[['individu','📝 Penilaian Individu'],['harian','Nilai Harian'],['tes','Tes Kenaikan Jilid']];
+   if(this.alquranLevel)t.splice(1,0,['ghorib','Ghorib'],['tajwid','Tajwid'],['hafalan','Hafalan']);t.push(['quran',"📖 Al-Qur'an"]);return t});
+ gt('capRows',function(){
+   const hs=new Set(this.d.halaqoh.map(r=>r.nis)),hl=new Set(this.d.halaqoh.filter(r=>r.status==='Lulus').map(r=>r.nis)),um=new Map(latestBy(this.d.ummi,r=>r.nis).map(r=>[r.nis,r])),m={};
+   SIS.forEach(s=>{const k=s.kelas+'|'+s.rombel,x=m[k]||(m[k]={kelas:s.kelas,rombel:s.rombel,n:0,hS:0,hL:0,uS:0,uL:0});x.n++;if(hs.has(s.nis))x.hS++;if(hl.has(s.nis))x.hL++;const u=um.get(s.nis);if(u){x.uS++;if(u.keputusan==='Lulus')x.uL++}});
+   return Object.values(m).sort((a,c)=>KELAS.indexOf(a.kelas)-KELAS.indexOf(c.kelas)||ROMBEL.indexOf(a.rombel)-ROMBEL.indexOf(c.rombel))});
+ gt('capTotal',function(){return [this.capSum(this.capRows,'SELURUH SEKOLAH (Kelas I–VI)')]});
+ gt('capLevel',function(){return KELAS.map(k=>this.capSum(this.capRows.filter(r=>r.kelas===k),'Kelas '+k))});
+ gt('capRombel',function(){return this.capRows.filter(r=>r.kelas===this.cap.k).map(r=>Object.assign({},r,{label:'Kelas '+r.kelas+' '+r.rombel}))});
+ return b;
+};
+})();
+</script>
+<!-- ===================== AKHIR TAMBAHAN V3 ===================== -->
 </body>
 </html>
