@@ -1320,5 +1320,379 @@ app=function(){
 })();
 </script>
 <!-- ===================== AKHIR TAMBAHAN V3 ===================== -->
+  <script>
+(function(){
+const SM_PASS='bismillah';          // sandi Portal Penilaian Semester (ubah di sini)
+const SM_KKM=78, SM_A=87;           // KKM dan batas predikat A (sesuai instrumen)
+
+/* ---------- Data instrumen (dari lampiran Excel) ---------- */
+const SM_TARGET={
+  I:['UMMI Jilid 1 hal 40','Q.S. Al Humazah'],
+  II:['UMMI Jilid 3 hal 40','Q.S. Al Balad'],
+  III:['UMMI Jilid 3 hal 40','Q.S. Al Infithor'],
+  IV:['UMMI Jilid 3 hal 40',"Q.S. An Naba'"],
+  V:['UMMI Jilid 3 hal 40',"Q.S. An Naba' (Lanjutan) + Muroja'ah"],
+  VI:['Q.S. An Naas : 6',"Q.S. An Naba' (Lanjutan) + Muroja'ah"]};
+const ASP1={t:[['t1','Kelancaran'],['t2','Ketuntasan materi'],['t3','Makhroj dan sifatul huruf']],
+            f:[['f1','Hafal'],['f2','Tartil'],['f3','Tajwid Hafalan']]};
+const ASP2={t:[['t1','Makhraj'],['t2','Sifat Huruf'],['t3','Tajwid Dasar'],['t4','Fashahah']],
+            f:[['f1','Hifzh (Hafalan)'],['f2','Thalaqoh (Lancar)'],['f3','Tajwid Hafalan'],['f4','Tartil & Adab']]};
+const aspFor=k=>k==='I'?ASP1:ASP2;
+const SKEYS=['t1','t2','t3','t4','f1','f2','f3','f4'];
+const NKEYS=['nt','nf','na'];
+const rnd1=x=>Math.round((x+1e-9)*10)/10;
+const vv=x=>x==null?'':x;
+const stOf=n=>(n===''||n==null)?'Belum lengkap':n>=SM_A?'Tuntas (A)':n>=SM_KKM?'Tuntas (B)':'Belum Tuntas (C)';
+const stCls=s=>String(s).startsWith('Tuntas (A)')?'bg-emerald-100 text-emerald-800 border-emerald-400':String(s).startsWith('Tuntas')?'bg-sky-100 text-sky-700 border-sky-300':String(s).startsWith('Belum Tuntas')?'bg-red-100 text-red-700 border-red-300':'bg-slate-100 text-slate-500 border-slate-300';
+
+/* Nilai Tahsin/Tahfidz = jumlah skor ÷ (jumlah aspek × 4) × 100 ; Nilai Akhir = rata-rata keduanya */
+function calc(R,A){
+  const grp=ar=>{const v=ar.map(a=>R[a[0]]);if(v.some(x=>x===''||x==null||isNaN(x)))return '';return rnd1(v.reduce((s,x)=>s+ +x,0)/(ar.length*4)*100)};
+  const nt=grp(A.t),nf=grp(A.f),na=(nt!==''&&nf!=='')?rnd1((nt+nf)/2):'';
+  const f=[...A.t,...A.f].filter(a=>R[a[0]]!==''&&R[a[0]]!=null&&!isNaN(R[a[0]]));
+  let low='';if(f.length){let m=f[0];f.forEach(a=>{if(+R[a[0]]<+R[m[0]])m=a});low=m[1]}
+  const auto=na===''?'':na>=SM_A?'Tuntas (Pengayaan / lanjut materi berikutnya)':na>=SM_KKM?'Tuntas (Tingkatkan '+low+')':'Remedial (Bimbingan '+low+')';
+  return{nt,nf,na,st:stOf(na),auto};
+}
+
+/* ---------- Panduan rubrik (ringkas) ---------- */
+const rbT=(head,rows)=>'<div class="overflow-x-auto mt-2"><table class="w-full text-xs"><thead><tr class="bg-brand-soft text-left">'+head.map(h=>'<th class="p-1.5">'+h+'</th>').join('')+'</tr></thead><tbody>'+rows.map(r=>'<tr class="border-b">'+r.map(c=>'<td class="p-1.5 align-top">'+(c||'—')+'</td>').join('')+'</tr>').join('')+'</tbody></table></div>';
+const RUBRIK=
+ '<p class="text-xs text-slate-600 mt-2">Skor 4 = Lagu dan lancar · 3 = Lancar dan tajwid · 2 = Lancar agak lupa · 1 = Terbata-bata. KKM = 78. Predikat A (87–100, Mumtaz) · B (78–86,9, Jayyid) · C (&lt; 78, Maqbul / wajib remedial).</p>'+
+ '<h4 class="font-bold mt-3 text-sm">I. Rubrik Tahsin</h4>'+
+ rbT(['Skor','Kategori','Kelancaran','Ketuntasan materi','Makhroj &amp; sifatul huruf','Tindak lanjut'],[
+  [4,'Lagu dan lancar','Tempo dan nada sesuai standar','','','Pengayaan / lanjut ke jilid/materi berikutnya, dipersiapkan sebagai model tilawah'],
+  [3,'Lancar dan tajwid','Tempo sesuai, nada perlu diingatkan','Menguasai materi dengan baik','Menguasai makhraj dan sifatul huruf dengan baik','Tuntas / pertahankan pembiasaan membaca harian dan pemantapan irama lagu'],
+  [2,'Lancar agak lupa','Tempo dan nada perlu diingatkan','Kurang menguasai materi dengan baik','Kurang menguasai makhraj dan sifatul huruf dengan baik','Latihan mandiri terbimbing pada titik makhraj dan sifat huruf yang sering tertukar'],
+  [1,'Terbata-bata','Tempo dan nada belum sesuai standar','Belum menguasai materi dengan baik','Belum menguasai makhraj dan sifatul huruf dengan baik','Remedial intensif / talaqqi privat per halaman sebelum materi baru']])+
+ '<h4 class="font-bold mt-3 text-sm">II. Rubrik Tahfidz</h4>'+
+ rbT(['Skor','Kategori','Hafal','Tartil','Tajwid hafalan','Tindak lanjut'],[
+  [4,'Lagu dan lancar','Tidak ada salah ayat, tidak ada tertukar urutan ayat/kalimat','','',"Lanjut menambah hafalan surat baru (ziyadah) dan menjaga muroja'ah berkala"],
+  [3,'Lancar dan tajwid','Hafalan kuat, kadang ragu yang mampu diingat sendiri atau dibantu guru','Tidak tergesa-gesa, sedikit jeda saat mengingat awal ayat berikutnya','Tajwid hafalan terjaga, kaidah dasar diterapkan benar',"Tuntas / mantapkan sambung ayat dan irama tartil sebelum tasmi'"],
+  [2,'Lancar agak lupa','Hafalan kurang kuat, beberapa perlu dibantu','Kurang lancar, ritme tersendat di tengah ayat atau antar ayat','Beberapa hukum tajwid terabaikan karena fokus mengingat',"Muroja'ah intensif pada surat berjalan, belum boleh menambah surat baru"],
+  [1,'Terbata-bata','Rapuh / belum hafal, banyak kesalahan','Sangat terbata-bata, sering berhenti lama','Banyak salah fatal (lahn jali), panjang pendek terabaikan',"Remedial khusus / tasmi' ulang per 3–5 ayat bersama guru"]]);
+
+/* ---------- Sisipkan HTML ---------- */
+const sections=()=>[...document.querySelectorAll('section')];
+const byX=t=>sections().find(s=>s.getAttribute('x-show')===t);
+const home=byX("screen==='home'"),
+      secG=byX("screen==='app' && portal!=='supervisi'"),
+      secS=byX("screen==='app' && portal==='supervisi'"),
+      secBk=byX("screen==='app'");
+
+// 1) kartu login baru di beranda
+const grid=home.querySelector('.grid');
+grid.className='grid sm:grid-cols-2 lg:grid-cols-4 gap-4';
+grid.insertAdjacentHTML('beforeend',`
+<button @click="openLogin('semester')" class="card p-6 text-left hover:-translate-y-1 hover:shadow-lg transition border-t-4 border-t-brand">
+  <div class="text-4xl">🗂️</div>
+  <div class="mt-3 font-extrabold text-lg text-brand-dark">Portal Guru</div>
+  <div class="font-bold text-brand">Penilaian Semester (Tahsin &amp; Tahfidz)</div>
+  <p class="text-sm text-slate-500 mt-1">Instrumen semesteran Kelas I–VI: nilai tahsin, tahfidz, nilai akhir, KKM 78, dan tindak lanjut.</p>
+  <span class="btn btn-p mt-4">Masuk →</span>
+</button>`);
+
+// 2) portal guru lama tidak ikut tampil di portal semester
+secG.setAttribute('x-show',"screen==='app' && portal!=='supervisi' && portal!=='semester'");
+
+// 3) portal guru: penilaian semester
+secBk.insertAdjacentHTML('beforebegin',`
+<section x-show="screen==='app' && portal==='semester'" class="space-y-5">
+ <div class="card p-4 sm:p-5">
+  <h2 class="font-extrabold text-brand-dark">Penilaian Tahsin &amp; Tahfidz Semester</h2>
+  <p class="text-xs text-slate-500">Skor indikator 1–4 · KKM 78 · Nilai Akhir = rata-rata Nilai Tahsin dan Nilai Tahfidz. Simpan setelah selesai mengisi satu kelas/rombel.</p>
+  <div class="grid sm:grid-cols-5 gap-3 mt-3">
+   <div><label class="lbl">Kelas</label><select class="inp" x-model="kelas" @change="onKelas();smLoad()"><template x-for="k in KELAS" :key="k"><option :value="k" x-text="'Kelas '+k"></option></template></select></div>
+   <div><label class="lbl">Rombel</label><select class="inp" x-model="rombel" @change="smLoad()"><template x-for="r in rombelList" :key="r"><option :value="r" x-text="r"></option></template></select></div>
+   <div><label class="lbl">Semester</label><select class="inp" x-model="sm.sem" @change="smLoad()"><option>Ganjil</option><option>Genap</option></select></div>
+   <div><label class="lbl">Tahun pelajaran</label><input class="inp" x-model="sm.ta" @change="smLoad()" placeholder="2026/2027"></div>
+   <div><label class="lbl">Cari nama</label><input class="inp" x-model="sm.q" placeholder="Ketik untuk menyaring…"></div>
+  </div>
+  <div class="grid sm:grid-cols-2 gap-3 mt-3">
+   <div><label class="lbl">Target materi Tahsin</label><input class="inp" x-model="sm.tgt1" @input="sm.dirty=true"></div>
+   <div><label class="lbl">Target materi Tahfidz</label><input class="inp" x-model="sm.tgt2" @input="sm.dirty=true"></div>
+  </div>
+ </div>
+
+ <div class="grid grid-cols-2 lg:grid-cols-6 gap-3">
+  <div class="card p-3 border-t-4 border-t-brand"><div class="text-xs font-bold text-slate-500">Total peserta didik</div><div class="text-2xl font-extrabold text-brand-dark" x-text="smSum.n"></div></div>
+  <div class="card p-3 border-t-4 border-t-brand"><div class="text-xs font-bold text-slate-500">Sudah dinilai lengkap</div><div class="text-2xl font-extrabold text-brand-dark" x-text="smSum.d"></div></div>
+  <div class="card p-3 border-t-4 border-t-gold"><div class="text-xs font-bold text-slate-500">Rata-rata kelas</div><div class="text-2xl font-extrabold text-gold-dark" x-text="smSum.avg"></div></div>
+  <div class="card p-3 border-t-4 border-t-brand"><div class="text-xs font-bold text-slate-500">Tuntas (≥78)</div><div class="text-2xl font-extrabold text-brand" x-text="smSum.tu"></div></div>
+  <div class="card p-3 border-t-4 border-t-gold"><div class="text-xs font-bold text-slate-500">Belum tuntas</div><div class="text-2xl font-extrabold text-gold-dark" x-text="smSum.be"></div></div>
+  <div class="card p-3 border-t-4 border-t-brand"><div class="text-xs font-bold text-slate-500">% Ketuntasan</div><div class="text-2xl font-extrabold text-brand-dark" x-text="smSum.pct"></div></div>
+ </div>
+
+ <div class="card p-4 sm:p-5">
+  <div class="text-xs text-slate-600 mb-2"><b x-text="'Kelas '+kelas+' '+rombel"></b> · Tahsin: <b x-text="sm.tgt1"></b> · Tahfidz: <b x-text="sm.tgt2"></b> <span class="ml-2 text-red-600 font-bold" x-show="sm.dirty">● ada perubahan belum disimpan</span></div>
+  <div class="overflow-auto max-h-[70vh] border rounded-xl">
+   <table class="mx">
+    <thead>
+     <tr><th rowspan="2">No</th><th rowspan="2" class="nm" style="background:#d1fae5">Nama siswa</th>
+      <th :colspan="smAsp.t.length+1">ASPEK PENILAIAN TAHSIN (SKOR 1 - 4)</th>
+      <th :colspan="smAsp.f.length+1">ASPEK PENILAIAN TAHFIDZ (SKOR 1 - 4)</th>
+      <th rowspan="2">Nilai Akhir</th><th rowspan="2">Status / Predikat</th><th rowspan="2" style="min-width:210px">Catatan / Tindak Lanjut</th></tr>
+     <tr><template x-for="a in smAsp.t" :key="a[0]"><th style="top:24px;min-width:78px" x-text="a[1]"></th></template><th style="top:24px">Nilai Tahsin</th>
+      <template x-for="a in smAsp.f" :key="a[0]"><th style="top:24px;min-width:78px" x-text="a[1]"></th></template><th style="top:24px">Nilai Tahfidz</th></tr>
+    </thead>
+    <tbody>
+     <template x-for="(s,i) in smSiswa" :key="s.nis"><tr>
+      <td x-text="i+1"></td><td class="nm" x-text="s.nama"></td>
+      <template x-for="a in smAsp.t" :key="a[0]"><td><select class="inp !p-1 !text-xs" style="width:54px" x-model="sm.rows[s.nis][a[0]]" @change="sm.dirty=true"><option value="">-</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select></td></template>
+      <td class="font-bold" x-text="smCalc(s.nis).nt"></td>
+      <template x-for="a in smAsp.f" :key="a[0]"><td><select class="inp !p-1 !text-xs" style="width:54px" x-model="sm.rows[s.nis][a[0]]" @change="sm.dirty=true"><option value="">-</option><option value="1">1</option><option value="2">2</option><option value="3">3</option><option value="4">4</option></select></td></template>
+      <td class="font-bold" x-text="smCalc(s.nis).nf"></td>
+      <td class="font-bold" x-text="smCalc(s.nis).na"></td>
+      <td><span class="px-2 py-0.5 rounded-full border text-xs font-bold whitespace-nowrap" :class="stCls(smCalc(s.nis).st)" x-text="smCalc(s.nis).st"></span></td>
+      <td><input class="inp !p-1 !text-xs" style="min-width:210px" x-model="sm.rows[s.nis].cat" :placeholder="smCalc(s.nis).auto" @input="sm.dirty=true"></td>
+     </tr></template>
+     <tr class="bg-brand-soft font-bold"><td colspan="2">Rata-rata kelas</td><template x-for="c in smKeys" :key="c"><td x-text="smAgg(c,'avg')"></td></template><td x-text="smAgg('na','avg')"></td><td x-text="smSum.tu+' Tuntas / '+smSum.be+' Belum'"></td><td></td></tr>
+     <tr class="font-bold"><td colspan="2">Nilai tertinggi (Max)</td><template x-for="c in smKeys" :key="c"><td x-text="smAgg(c,'max')"></td></template><td x-text="smAgg('na','max')"></td><td></td><td></td></tr>
+     <tr class="font-bold"><td colspan="2">Nilai terendah (Min)</td><template x-for="c in smKeys" :key="c"><td x-text="smAgg(c,'min')"></td></template><td x-text="smAgg('na','min')"></td><td></td><td></td></tr>
+    </tbody>
+   </table>
+  </div>
+  <div class="mt-4 flex flex-wrap gap-2">
+   <button class="btn btn-p" @click="smSave()">💾 Simpan Penilaian</button>
+   <button class="btn btn-o" @click="smPrint()">🖨 Cetak Lembar</button>
+   <button class="btn btn-g" @click="smExcel()">⬇ Excel</button>
+   <button class="btn btn-o" @click="smLoad()">↺ Muat ulang dari data tersimpan</button>
+  </div>
+  <p class="text-xs text-slate-500 mt-2">Nilai terhitung otomatis setelah semua aspek tahsin dan tahfidz seorang siswa terisi. Kolom catatan terisi saran otomatis (abu-abu) dan boleh ditimpa manual. Data disinkronkan ke Google Sheet (tab “Semester”) dan tampil di Portal Supervisi.</p>
+ </div>
+
+ <details class="card p-4">
+  <summary class="font-bold text-brand-dark cursor-pointer">📘 Panduan rubrik penilaian (skor 1–4) &amp; predikat</summary>
+  ${RUBRIK}
+ </details>
+</section>`);
+
+// 4) portal supervisi: tab baru + isi
+const tpl=secS.querySelector('template[x-for]');
+tpl.setAttribute('x-for',tpl.getAttribute('x-for').replace("['capaian','📈 Capaian']","['capaian','📈 Capaian'],['semester','📘 Nilai Semester']"));
+
+const th=h=>'<th class="p-2">'+h+'</th>';
+secS.insertAdjacentHTML('beforeend',`
+<template x-if="tab==='semester'"><div class="space-y-4">
+ <div class="no-print card p-3 flex flex-wrap gap-3 items-end">
+  <div><label class="lbl">Kelas</label><select class="inp" x-model="smv.k"><option value="">Semua kelas</option><template x-for="k in KELAS" :key="k"><option :value="k" x-text="'Kelas '+k"></option></template></select></div>
+  <div><label class="lbl">Rombel</label><select class="inp" x-model="smv.r"><option value="">Semua rombel</option><template x-for="r in ROMBEL" :key="r"><option x-text="r"></option></template></select></div>
+  <div><label class="lbl">Semester</label><select class="inp" x-model="smv.sem"><option>Ganjil</option><option>Genap</option></select></div>
+  <div><label class="lbl">Tahun pelajaran</label><input class="inp" x-model="smv.ta" style="width:120px"></div>
+  <div class="ml-auto flex flex-wrap gap-2"><button class="btn btn-o" @click="window.print()">🖨 Cetak</button><button class="btn btn-g" @click="smvExcel()">⬇ Excel Nilai Semester</button></div>
+ </div>
+ <div class="text-sm font-bold text-brand-dark">Nilai Tahsin &amp; Tahfidz Semester <span x-text="smv.sem+' '+smv.ta"></span><span class="font-normal text-slate-500" x-text="(smv.k?' · Kelas '+smv.k:'')+(smv.r?' '+smv.r:'')"></span></div>
+ <div class="grid grid-cols-2 lg:grid-cols-6 gap-3">
+  <div class="card p-3 border-t-4 border-t-brand"><div class="text-xs font-bold text-slate-500">Total siswa</div><div class="text-2xl font-extrabold text-brand-dark" x-text="smvTot.n"></div></div>
+  <div class="card p-3 border-t-4 border-t-brand"><div class="text-xs font-bold text-slate-500">Sudah dinilai lengkap</div><div class="text-2xl font-extrabold text-brand-dark" x-text="smvTot.d"></div></div>
+  <div class="card p-3 border-t-4 border-t-gold"><div class="text-xs font-bold text-slate-500">Rata-rata nilai akhir</div><div class="text-2xl font-extrabold text-gold-dark" x-text="smvTot.aA"></div></div>
+  <div class="card p-3 border-t-4 border-t-brand"><div class="text-xs font-bold text-slate-500">Tuntas (≥78)</div><div class="text-2xl font-extrabold text-brand" x-text="smvTot.tu"></div></div>
+  <div class="card p-3 border-t-4 border-t-gold"><div class="text-xs font-bold text-slate-500">Belum tuntas</div><div class="text-2xl font-extrabold text-gold-dark" x-text="smvTot.be"></div></div>
+  <div class="card p-3 border-t-4 border-t-brand"><div class="text-xs font-bold text-slate-500">% Ketuntasan</div><div class="text-2xl font-extrabold text-brand-dark" x-text="smvTot.pct"></div></div>
+ </div>
+ <div class="card p-4"><h3 class="font-bold text-brand-dark mb-2">Rekap per Level Kelas</h3>
+  <div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="bg-brand text-white text-left">${['Kelas','Siswa','Dinilai','Rata² Tahsin','Rata² Tahfidz','Rata² Akhir','Tuntas','Belum','% Tuntas'].map(th).join('')}</tr></thead>
+  <tbody><template x-for="r in smvLevel" :key="r.kelas"><tr class="border-b"><td class="p-2 font-semibold" x-text="'Kelas '+r.kelas"></td><td class="p-2" x-text="r.n"></td><td class="p-2" x-text="r.d"></td><td class="p-2" x-text="r.aT"></td><td class="p-2" x-text="r.aF"></td><td class="p-2 font-bold" x-text="r.aA"></td><td class="p-2 text-brand font-bold" x-text="r.tu"></td><td class="p-2 text-gold-dark font-bold" x-text="r.be"></td><td class="p-2" x-text="r.pct"></td></tr></template>
+  <tr class="bg-brand-soft font-extrabold"><td class="p-2">TOTAL</td><td class="p-2" x-text="smvTot.n"></td><td class="p-2" x-text="smvTot.d"></td><td class="p-2" x-text="smvTot.aT"></td><td class="p-2" x-text="smvTot.aF"></td><td class="p-2" x-text="smvTot.aA"></td><td class="p-2" x-text="smvTot.tu"></td><td class="p-2" x-text="smvTot.be"></td><td class="p-2" x-text="smvTot.pct"></td></tr></tbody></table></div></div>
+ <div class="card p-4"><h3 class="font-bold text-brand-dark mb-2">Rekap per Rombel</h3>
+  <div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="bg-brand text-white text-left">${['Kelas','Rombel','Siswa','Dinilai','Rata² Tahsin','Rata² Tahfidz','Rata² Akhir','Tuntas','Belum','% Tuntas'].map(th).join('')}</tr></thead>
+  <tbody><template x-for="r in smvRows" :key="r.kelas+r.rombel"><tr class="border-b"><td class="p-2" x-text="r.kelas"></td><td class="p-2 font-semibold" x-text="r.rombel"></td><td class="p-2" x-text="r.n"></td><td class="p-2" x-text="r.d"></td><td class="p-2" x-text="r.aT"></td><td class="p-2" x-text="r.aF"></td><td class="p-2 font-bold" x-text="r.aA"></td><td class="p-2 text-brand font-bold" x-text="r.tu"></td><td class="p-2 text-gold-dark font-bold" x-text="r.be"></td><td class="p-2" x-text="r.pct"></td></tr></template></tbody></table></div></div>
+ <div class="card p-4" x-show="smv.k"><h3 class="font-bold text-brand-dark mb-2">Detail Nilai Siswa <span class="font-normal text-slate-500" x-text="'Kelas '+smv.k+(smv.r?' '+smv.r:'')"></span></h3>
+  <div class="overflow-x-auto"><table class="w-full text-sm"><thead><tr class="bg-brand text-white text-left">${['No','Rombel','Nama','Nilai Tahsin','Nilai Tahfidz','Nilai Akhir','Status','Catatan / Tindak lanjut','Penguji'].map(th).join('')}</tr></thead>
+  <tbody><template x-for="(x,i) in smvDetail" :key="x.s.nis"><tr class="border-b"><td class="p-2" x-text="i+1"></td><td class="p-2" x-text="x.s.rombel"></td><td class="p-2 font-semibold" x-text="x.s.nama"></td>
+   <td class="p-2" x-text="x.r?x.r.nilai_tahsin:'—'"></td><td class="p-2" x-text="x.r?x.r.nilai_tahfidz:'—'"></td><td class="p-2 font-bold" x-text="x.r?x.r.nilai_akhir:'—'"></td>
+   <td class="p-2"><span x-show="x.r" class="px-2 py-0.5 rounded-full border text-xs font-bold whitespace-nowrap" :class="x.r&&stCls(stOf(x.r.nilai_akhir))" x-text="x.r&&stOf(x.r.nilai_akhir)"></span></td>
+   <td class="p-2 text-xs" x-text="x.r?x.r.catatan:''"></td><td class="p-2 text-xs" x-text="x.r?x.r.penguji:''"></td></tr></template>
+   <tr x-show="!smvDetail.length"><td colspan="9" class="p-4 text-center text-slate-400">Tidak ada siswa.</td></tr></tbody></table></div></div>
+ <p class="text-xs text-slate-500 no-print">Hanya siswa yang aspek tahsin dan tahfidznya terisi lengkap dihitung pada kolom “Dinilai”, rata-rata, dan ketuntasan. Tekan tombol sinkron di kanan atas untuk menarik data terbaru dari semua guru.</p>
+</div></template>`);
+
+/* ---------- Logika ---------- */
+const A0=app;
+app=function(){
+ const b=A0();
+ b.d.semester=[];
+ const gt=(n,f)=>Object.defineProperty(b,n,{get:f,enumerable:true,configurable:true});
+ const oInit=b.init,oRel=b.reload,oLogin=b.doLogin,oSync=b.syncNow,oEnq=b.enqueue,oNorm=b.normRec;
+ const pn0=Object.getOwnPropertyDescriptor(b,'portalName').get;
+
+ Object.assign(b,{
+  stCls,stOf,
+  sm:{sem:CFG.SEMESTER,ta:CFG.TA,q:'',tgt1:'',tgt2:'',rows:{},dirty:false},
+  smv:{k:'',r:'',sem:CFG.SEMESTER,ta:CFG.TA},
+
+  init(){oInit.call(this);if(this.portal==='semester'&&this.screen==='app')this.smLoad()},
+  reload(){oRel.call(this);this.d.semester=store.get('semester',[])},
+  doLogin(){
+    if(this.portal==='semester'){const g=CFG.GURU_PASS;CFG.GURU_PASS=SM_PASS;try{oLogin.call(this)}finally{CFG.GURU_PASS=g}}
+    else oLogin.call(this);
+    if(this.portal==='semester'&&this.screen==='app')this.smLoad();
+  },
+  async syncNow(m){await oSync.call(this,m);if(this.portal==='semester'&&this.screen==='app'&&!this.sm.dirty)this.smLoad()},
+
+  /* antrean sinkron: dukung operasi 'upsert' */
+  enqueue(action,type,rec,noFlush){
+    if(action!=='upsert')return oEnq.call(this,action,type,rec,noFlush);
+    if(!CFG.API_URL)return;
+    const q=store.get('queue',[]).filter(o=>!(o.action==='upsert'&&o.type===type&&o.id===rec.id));
+    q.push({action:'upsert',type,id:rec.id,rec});store.set('queue',q);this.sync.pend=q.length;
+    if(!noFlush)this.flush();
+  },
+  normRec(type,x){
+    if(type!=='semester')return oNorm.call(this,type,x);
+    const o=Object.assign({},x);
+    ['ts',...SKEYS,'nilai_tahsin','nilai_tahfidz','nilai_akhir'].forEach(k=>{if(o[k]!==''&&o[k]!=null&&!isNaN(o[k]))o[k]=Number(o[k])});
+    ['id','nis','tgl','ta','semester'].forEach(k=>{if(o[k]!=null)o[k]=String(o[k])});
+    return o;
+  },
+  /* tarik data dari server (halaqoh, ummi, log, semester) */
+  async pull(){
+    const r=await fetch(CFG.API_URL+'?token='+encodeURIComponent(CFG.API_TOKEN)+'&t='+Date.now()),j=await r.json();
+    if(!j.ok)throw new Error(j.error||'Server menolak');
+    const delIds=new Set(store.get('queue',[]).filter(o=>o.action==='delete').map(o=>o.id));
+    ['halaqoh','ummi','log','semester'].forEach(tp=>{
+      const s=(j[tp]||[]).map(x=>this.normRec(tp,x)).filter(x=>!delIds.has(x.id));
+      if(tp==='semester'){
+        const m=new Map(s.map(x=>[x.id,x]));
+        this.d.semester.forEach(x=>{if(!x.id||delIds.has(x.id))return;const y=m.get(x.id);
+          if(!y||(x.ts||0)>(y.ts||0)){m.set(x.id,x);this.enqueue('upsert','semester',x,true)}});
+        this.d.semester=[...m.values()];store.set('semester',this.d.semester);return;
+      }
+      const ids=new Set(s.map(x=>x.id));
+      this.d[tp].forEach(x=>{if(x.id&&!ids.has(x.id)&&!delIds.has(x.id)){s.push(x);this.enqueue('add',tp,x,true)}});
+      if(tp==='log'){s.sort((a,c)=>a.ts-c.ts);this.d.log=s.slice(-800)}else this.d[tp]=s;
+      store.set(tp,this.d[tp]);
+    });
+    const g=new Set(this.d.guru);this.d.log.forEach(l=>{if(l.role&&l.role!=='supervisi'&&l.guru)g.add(l.guru)});this.d.guru=[...g];store.set('guru',this.d.guru);
+  },
+
+  /* ---------- portal guru semester ---------- */
+  smId(nis){return 'SM_'+nis+'_'+String(this.sm.ta).replace(/\D/g,'')+'_'+this.sm.sem},
+  smCalc(nis){return calc(this.sm.rows[nis]||{},this.smAsp)},
+  smLoad(){
+    if(this.portal!=='semester')return;
+    const A=this.smAsp,rows={};
+    this.smAll.forEach(s=>{
+      const r=this.d.semester.find(x=>x.id===this.smId(s.nis)),o={cat:''};
+      SKEYS.forEach(k=>o[k]=(r&&r[k]!==''&&r[k]!=null)?String(r[k]):'');
+      if(r&&r.catatan&&r.catatan!==calc(o,A).auto)o.cat=r.catatan;
+      rows[s.nis]=o;
+    });
+    const t=this.d.semester.find(x=>x.kelas===this.kelas&&x.semester===this.sm.sem&&x.ta===this.sm.ta&&(x.tgt_tahsin||x.tgt_tahfidz));
+    this.sm.tgt1=t&&t.tgt_tahsin||SM_TARGET[this.kelas][0];
+    this.sm.tgt2=t&&t.tgt_tahfidz||SM_TARGET[this.kelas][1];
+    this.sm.rows=rows;this.sm.dirty=false;
+  },
+  smAgg(key,fn){
+    if(fn!=='avg'&&!NKEYS.includes(key))return '';
+    const v=this.smAll.map(s=>{const R=this.sm.rows[s.nis];if(!R)return '';return NKEYS.includes(key)?this.smCalc(s.nis)[key]:R[key]})
+      .filter(x=>x!==''&&x!=null&&!isNaN(x)).map(Number);
+    if(!v.length)return '';
+    return fn==='max'?Math.max(...v):fn==='min'?Math.min(...v):rnd1(v.reduce((a,c)=>a+c,0)/v.length);
+  },
+  smSave(){
+    if(!String(this.sm.ta).trim())return this.notify('Isi tahun pelajaran.','err');
+    const A=this.smAsp,keys=[...A.t,...A.f].map(a=>a[0]),batch=[];
+    const sig=r=>JSON.stringify([...SKEYS.map(k=>r[k]),r.catatan,r.tgt_tahsin,r.tgt_tahfidz]);
+    this.smAll.forEach(s=>{
+      const R=this.sm.rows[s.nis];if(!R)return;
+      if(!keys.some(k=>R[k]!==''&&R[k]!=null))return;
+      const c=calc(R,A),id=this.smId(s.nis);
+      const rec={id,ts:Date.now(),tgl:todayStr(),nis:s.nis,nama:s.nama,kelas:s.kelas,rombel:s.rombel,semester:this.sm.sem,ta:String(this.sm.ta).trim(),tgt_tahsin:String(this.sm.tgt1).trim(),tgt_tahfidz:String(this.sm.tgt2).trim()};
+      SKEYS.forEach(k=>rec[k]=(keys.includes(k)&&R[k]!==''&&R[k]!=null)?Number(R[k]):'');
+      Object.assign(rec,{nilai_tahsin:c.nt,nilai_tahfidz:c.nf,nilai_akhir:c.na,status:c.st,catatan:(R.cat||'').trim()||c.auto,penguji:this.user});
+      const old=this.d.semester.find(x=>x.id===id);
+      if(old&&sig(old)===sig(rec))return;
+      batch.push(rec);
+    });
+    if(!batch.length)return this.notify('Tidak ada skor baru/perubahan untuk disimpan.','err');
+    const keep=this.d.semester.slice();
+    batch.forEach(r=>{const i=this.d.semester.findIndex(x=>x.id===r.id);if(i>=0)this.d.semester.splice(i,1,r);else this.d.semester.push(r)});
+    if(!store.set('semester',this.d.semester)){this.d.semester=keep;return this.notify('Gagal menyimpan (penyimpanan browser penuh/diblokir).','err')}
+    batch.forEach(r=>this.enqueue('upsert','semester',r,true));
+    this.addLog('Nilai Semester','Kelas '+this.kelas+' '+this.rombel+' · '+batch.length+' siswa · '+this.sm.sem+' '+this.sm.ta);
+    this.flush();this.sm.dirty=false;
+    this.notify('Tersimpan: '+batch.length+' siswa (Kelas '+this.kelas+' '+this.rombel+').');
+  },
+  smExcel(){
+    const A=this.smAsp,hd=['No','NIS','Nama',...A.t.map(a=>a[1]),'Nilai Tahsin',...A.f.map(a=>a[1]),'Nilai Tahfidz','Nilai Akhir','Status / Predikat','Catatan / Tindak Lanjut'];
+    const rows=[['INSTRUMEN PENILAIAN TAHSIN & TAHFIDZ AL-QUR\'AN'],[CFG.LEMBAGA],['Tahun Pelajaran '+this.sm.ta+' | Semester '+this.sm.sem],['Kelas',this.kelas+' '+this.rombel,'KKM',SM_KKM],['Target Tahsin',this.sm.tgt1,'Target Tahfidz',this.sm.tgt2],[],hd,
+      ...this.smAll.map((s,i)=>{const R=this.sm.rows[s.nis]||{},c=this.smCalc(s.nis);return[i+1,s.nis,s.nama,...A.t.map(a=>R[a[0]]),c.nt,...A.f.map(a=>R[a[0]]),c.nf,c.na,c.na===''?'':c.st,(R.cat||'').trim()||c.auto]})];
+    this.save([{name:('Kelas '+this.kelas+' '+this.rombel).slice(0,31),rows,w:[5,8,34,...A.t.map(()=>12),11,...A.f.map(()=>12),11,11,18,40]}],'Semester_Kelas_'+this.kelas+'_'+this.rombel+'_'+safe(this.sm.sem+'_'+this.sm.ta)+'_'+todayStr()+'.xlsx');
+  },
+  smPrint(){
+    const A=this.smAsp,n1=A.t.length,n2=A.f.length,sum=this.smSum;
+    let h='<h3>INSTRUMEN PENILAIAN TAHSIN &amp; TAHFIDZ AL-QUR\'AN</h3><h3>Tahun Pelajaran '+esc(this.sm.ta)+' | '+esc(CFG.LEMBAGA)+' | Semester '+esc(this.sm.sem)+'</h3>';
+    h+='<table class="nb" style="margin:6px 0"><tr><td>Kelas : <b>'+esc(this.kelas+' '+this.rombel)+'</b></td><td>KKM : '+SM_KKM+'</td><td>Target Tahsin : '+esc(this.sm.tgt1)+'</td><td>Target Tahfidz : '+esc(this.sm.tgt2)+'</td></tr><tr><td colspan="4">Peserta didik: '+sum.n+' · Dinilai lengkap: '+sum.d+' · Rata-rata: '+sum.avg+' · Tuntas: '+sum.tu+' · Belum tuntas: '+sum.be+' · Ketuntasan: '+sum.pct+'</td></tr></table>';
+    h+='<table><thead><tr><th rowspan="2">No</th><th rowspan="2">Nama Siswa</th><th colspan="'+(n1+1)+'">ASPEK PENILAIAN TAHSIN (SKOR 1 - 4)</th><th colspan="'+(n2+1)+'">ASPEK PENILAIAN TAHFIDZ (SKOR 1 - 4)</th><th rowspan="2">Nilai Akhir</th><th rowspan="2">Status / Predikat</th><th rowspan="2">Catatan / Tindak Lanjut</th></tr><tr>'+A.t.map(a=>'<th>'+esc(a[1])+'</th>').join('')+'<th>Nilai Tahsin</th>'+A.f.map(a=>'<th>'+esc(a[1])+'</th>').join('')+'<th>Nilai Tahfidz</th></tr></thead><tbody>';
+    this.smAll.forEach((s,i)=>{const R=this.sm.rows[s.nis]||{},c=this.smCalc(s.nis);
+      h+='<tr><td class="c">'+(i+1)+'</td><td>'+esc(s.nama)+'</td>'+A.t.map(a=>'<td class="c">'+esc(R[a[0]])+'</td>').join('')+'<td class="c"><b>'+c.nt+'</b></td>'+A.f.map(a=>'<td class="c">'+esc(R[a[0]])+'</td>').join('')+'<td class="c"><b>'+c.nf+'</b></td><td class="c"><b>'+c.na+'</b></td><td>'+(c.na===''?'':esc(c.st))+'</td><td>'+esc((R.cat||'').trim()||c.auto)+'</td></tr>'});
+    h+='<tr><td colspan="2"><b>Rata-rata Kelas</b></td>'+this.smKeys.map(k=>'<td class="c"><b>'+this.smAgg(k,'avg')+'</b></td>').join('')+'<td class="c"><b>'+this.smAgg('na','avg')+'</b></td><td colspan="2">'+sum.tu+' Tuntas / '+sum.be+' Belum</td></tr></tbody></table>';
+    h+='<p style="font-size:11px"><b>Rubrik:</b> Skor 4 Lagu dan lancar · 3 Lancar dan tajwid · 2 Lancar agak lupa · 1 Terbata-bata. Predikat A (87–100 Mumtaz / Tuntas) · B (78–86,9 Jayyid / Tuntas) · C (&lt; 78 Maqbul / Belum tuntas, wajib remedial). KKM = 78.</p>';
+    h+='<div class="ttd"><div>Mengetahui,<br>Kepala Sekolah / Koordinator Qur\'an<br><br><br><br><b>'+esc(KEPSEK.nama)+'</b><br>NBM. '+KEPSEK.nbm+'</div><div>Wonosari, '+fmtTgl(todayStr())+'<br>Guru Pengampu Tahsin &amp; Tahfidz<br><br><br><br><b>( '+esc(this.user)+' )</b></div></div>';
+    printDoc('Penilaian Semester Kelas '+this.kelas+' '+this.rombel,h,true);
+  },
+
+  /* ---------- portal supervisi: nilai semester ---------- */
+  smvGroups(k,r){
+    const rec=new Map(this.d.semester.filter(x=>x.semester===this.smv.sem&&x.ta===this.smv.ta).map(x=>[x.nis,x])),m={};
+    SIS.forEach(s=>{
+      if((k&&s.kelas!==k)||(r&&s.rombel!==r))return;
+      const g=m[s.kelas+'|'+s.rombel]||(m[s.kelas+'|'+s.rombel]={kelas:s.kelas,rombel:s.rombel,n:0,d:0,sT:0,sF:0,sA:0,tu:0,be:0});
+      g.n++;const x=rec.get(s.nis);
+      if(x&&x.nilai_akhir!==''&&x.nilai_akhir!=null){g.d++;g.sT+=+x.nilai_tahsin;g.sF+=+x.nilai_tahfidz;g.sA+=+x.nilai_akhir;if(+x.nilai_akhir>=SM_KKM)g.tu++;else g.be++}
+    });
+    return Object.values(m).sort((a,c)=>KELAS.indexOf(a.kelas)-KELAS.indexOf(c.kelas)||ROMBEL.indexOf(a.rombel)-ROMBEL.indexOf(c.rombel));
+  },
+  smvFin(g){const f=(s)=>g.d?rnd1(s/g.d):'—';return Object.assign({},g,{aT:f(g.sT),aF:f(g.sF),aA:f(g.sA),pct:g.d?Math.round(g.tu*100/g.d)+'%':'—'})},
+  smvExcel(){
+    const rec=new Map(this.d.semester.filter(x=>x.semester===this.smv.sem&&x.ta===this.smv.ta).map(x=>[x.nis,x]));
+    const head=[['SIPENTAS — NILAI TAHSIN & TAHFIDZ SEMESTER'],[CFG.LEMBAGA],['Semester '+this.smv.sem+' Tahun Pelajaran '+this.smv.ta],[]];
+    const sheets=[{name:'Rekap',w:[8,12,10,12,12,12,12,10,10,12],rows:[...head,['Kelas','Rombel','Jml Siswa','Dinilai Lengkap','Rata-rata Tahsin','Rata-rata Tahfidz','Rata-rata Akhir','Tuntas','Belum Tuntas','% Ketuntasan'],
+      ...this.smvGroups('','').map(g=>this.smvFin(g)).map(g=>[g.kelas,g.rombel,g.n,g.d,g.aT,g.aF,g.aA,g.tu,g.be,g.pct])]}];
+    KELAS.forEach(k=>{
+      const A=aspFor(k);
+      sheets.push({name:'Kelas '+k,w:[5,11,8,34,...A.t.map(()=>12),11,...A.f.map(()=>12),11,11,18,40,24,24,22],rows:[...head,
+        ['No','Rombel','NIS','Nama',...A.t.map(a=>a[1]),'Nilai Tahsin',...A.f.map(a=>a[1]),'Nilai Tahfidz','Nilai Akhir','Status / Predikat','Catatan / Tindak Lanjut','Target Tahsin','Target Tahfidz','Penguji'],
+        ...SIS.filter(s=>s.kelas===k).map((s,i)=>{const r=rec.get(s.nis)||{};return[i+1,s.rombel,s.nis,s.nama,...A.t.map(a=>vv(r[a[0]])),vv(r.nilai_tahsin),...A.f.map(a=>vv(r[a[0]])),vv(r.nilai_tahfidz),vv(r.nilai_akhir),vv(r.status),vv(r.catatan),vv(r.tgt_tahsin),vv(r.tgt_tahfidz),vv(r.penguji)]})]});
+    });
+    this.save(sheets,'SIPENTAS_Nilai_Semester_'+safe(this.smv.sem+'_'+this.smv.ta)+'_'+todayStr()+'.xlsx');
+  }
+ });
+
+ /* getter */
+ gt('portalName',function(){return this.portal==='semester'?'Portal Guru · Penilaian Semester (Tahsin & Tahfidz)':pn0.call(this)});
+ gt('smAll',function(){return SIS.filter(s=>s.kelas===this.kelas&&s.rombel===this.rombel)});
+ gt('smAsp',function(){return aspFor(this.kelas)});
+ gt('smKeys',function(){return[...this.smAsp.t.map(a=>a[0]),'nt',...this.smAsp.f.map(a=>a[0]),'nf']});
+ gt('smSiswa',function(){const q=String(this.sm.q).trim().toLowerCase();return this.smAll.filter(s=>this.sm.rows[s.nis]&&(!q||s.nama.toLowerCase().includes(q)||s.nis.includes(q)))});
+ gt('smSum',function(){
+   const c=this.smAll.map(s=>calc(this.sm.rows[s.nis]||{},this.smAsp)).filter(x=>x.na!==''),tu=c.filter(x=>x.na>=SM_KKM).length;
+   return{n:this.smAll.length,d:c.length,avg:c.length?rnd1(c.reduce((a,x)=>a+x.na,0)/c.length):'—',tu,be:c.length-tu,pct:c.length?Math.round(tu*100/c.length)+'%':'—'};
+ });
+ gt('smvRows',function(){return this.smvGroups(this.smv.k,this.smv.r).map(g=>this.smvFin(g))});
+ gt('smvLevel',function(){
+   const gs=this.smvGroups(this.smv.k,this.smv.r);
+   return KELAS.filter(k=>gs.some(g=>g.kelas===k)).map(k=>{
+     const t={kelas:k,n:0,d:0,sT:0,sF:0,sA:0,tu:0,be:0};
+     gs.filter(g=>g.kelas===k).forEach(g=>['n','d','sT','sF','sA','tu','be'].forEach(f=>t[f]+=g[f]));
+     return this.smvFin(t);
+   });
+ });
+ gt('smvTot',function(){
+   const t={n:0,d:0,sT:0,sF:0,sA:0,tu:0,be:0};
+   this.smvGroups(this.smv.k,this.smv.r).forEach(g=>Object.keys(t).forEach(f=>t[f]+=g[f]));
+   return this.smvFin(t);
+ });
+ gt('smvDetail',function(){
+   if(!this.smv.k)return[];
+   const rec=new Map(this.d.semester.filter(x=>x.semester===this.smv.sem&&x.ta===this.smv.ta).map(x=>[x.nis,x]));
+   return SIS.filter(s=>s.kelas===this.smv.k&&(!this.smv.r||s.rombel===this.smv.r)).map(s=>({s,r:rec.get(s.nis)||null}));
+ });
+ return b;
+};
+})();
+</script>
+<!-- ===================== AKHIR TAMBAHAN V4 ===================== -->
 </body>
 </html>
